@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>المسابقة التربوية التوعوية: قيمة الصدق - مدرسة عمر بن الخطاب</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  
+  <!-- مكتبة EmailJS -->
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+  
+  <!-- مكتبات Firebase Realtime Database -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
+  <style>
+    body { font-family: 'Tajawal', sans-serif; }
+    .wheel-container {
+      position: relative;
+      width: 340px;
+      height: 340px;
+      margin: 0 auto;
+    }
+    .wheel-pointer {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 18px solid transparent;
+      border-right: 18px solid transparent;
+      border-top: 32px solid #ef4444;
+      z-index: 20;
+      filter: drop-shadow(0 3px 4px rgba(0,0,0,0.3));
+    }
+    @keyframes winnerPop {
+      0% { transform: scale(0.85); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .winner-card-anim {
+      animation: winnerPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+   
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 flex flex-col justify-between">
+
+  <!-- Header -->
+  <header class="bg-gradient-to-r from-teal-700 to-cyan-800 text-white shadow-lg py-3 px-4">
+    <div class="max-w-3xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3 md:gap-5">
+        <img src="logo.png" alt="شعار المدرسة" class="w-24 h-24 md:w-32 md:h-32 object-contain shrink-0 transparent-logo drop-shadow" onerror="this.style.display='none'">
+        <div>
+          <h1 class="text-xl md:text-2xl font-bold leading-tight">مدرسة عمر بن الخطاب للتعليم الأساسي بسِنْجِرْجْ</h1>
+          <p class="text-teal-100 text-xs md:text-sm mt-1">المسابقة التوعوية الكبرى لأولياء الأمور - غرس قيمة الصدق</p>
+        </div>
+      </div>
+      <div class="bg-white/10 px-3 py-1.5 rounded-lg border border-white/20 text-xs font-semibold shrink-0 hidden sm:block">
+        محاولة واحدة فقط
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-2xl mx-auto w-full p-4 flex-1">
+    
+    <!-- قسم عجلة السحب المباشر -->
+    <section id="lotterySection" class="bg-white p-6 rounded-2xl shadow-sm border border-teal-200 mb-6 text-center">
+      <div id="lotteryPreDraw" class="space-y-3">
+        <div class="inline-flex items-center gap-2 bg-amber-50 text-amber-800 px-4 py-1.5 rounded-full text-xs font-bold border border-amber-200">
+          <span>⏳</span> موعد السحب المباشر
+        </div>
+        <h3 class="text-lg font-bold text-slate-800">سحب الـ 5 فائزين بالجوائز التقديرية</h3>
+        <p class="text-sm text-slate-500">
+          موعد السحب: <strong class="text-teal-700">الخميس 19 نوفمبر 2026 الساعة 8:00 مساءً</strong>
+        </p>
+        <div id="countdownBox" class="text-teal-700 font-extrabold text-lg tracking-wider"></div>
+        <div class="text-xs text-slate-400 mt-2">
+          إجمالي المرشحين المؤهلين حالياً بالسحابة: <span id="candidatesCount" class="font-bold text-teal-600">0</span>
+        </div>
+      </div>
+
+      <div id="lotteryLiveArea" class="hidden space-y-5">
+        <div class="inline-flex items-center gap-2 bg-rose-50 text-rose-700 px-4 py-1 rounded-full text-xs font-bold border border-rose-200 animate-pulse">
+          <span>🔴</span> السحب التلقائي المباشر جاري الآن
+        </div>
+        <h3 id="currentRoundTitle" class="text-lg font-bold text-slate-800">جاري سحب الفائز الأول...</h3>
+        <div class="wheel-container">
+          <div class="wheel-pointer"></div>
+          <canvas id="wheelCanvas" width="340" height="340" class="rounded-full shadow-lg border-4 border-slate-700"></canvas>
+        </div>
+        <div id="roundAnnouncement" class="min-h-[40px] text-base font-bold text-teal-700"></div>
+        <div class="border-t border-slate-100 pt-4">
+          <h4 class="text-xs font-bold text-slate-400 mb-3 text-right">الفائزون الذين تم اختيارهم حتى الآن:</h4>
+          <div id="liveWinnersList" class="grid grid-cols-1 gap-2.5 max-w-md mx-auto text-right"></div>
+        </div>
+      </div>
+
+      <div id="lotteryWinnersBoard" class="hidden space-y-4">
+        <div class="inline-flex items-center gap-2 bg-emerald-50 text-emerald-800 px-4 py-1 rounded-full text-xs font-bold border border-emerald-200">
+          <span>🏆</span> النتائج النهائية المعتمدة
+        </div>
+        <h3 class="text-xl font-bold text-slate-800">لوحة شرف الفائزين الخمسة بالسحب</h3>
+        <div id="finalWinnersList" class="grid grid-cols-1 gap-2.5 max-w-md mx-auto text-right pt-2"></div>
+      </div>
+    </section>
+
+    <!-- شاشة الحظر عند محاولة الدخول مجدداً -->
+    <div id="alreadyTakenScreen" class="hidden bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center my-6">
+      <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+      <h2 class="text-2xl font-bold text-slate-800 mb-2">عفواً، لقد قمت بأداء مسابقة قيمة الصدق مسبقاً</h2>
+      <p class="text-slate-600 mb-4">وفقاً للنظام التربوي المعتمد، لا يُسمح بإعادة تقديم الاختبار من هذا الجهاز لضمان دقة الاستبيان وتكافؤ الفرص.</p>
+      <div id="previousScoreBox" class="inline-block bg-slate-50 border border-slate-200 px-6 py-3 rounded-xl font-semibold text-teal-700"></div>
+    </div>
+
+    <!-- شاشة تسجيل البيانات -->
+    <div id="registrationScreen" class="relative bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 mb-6 overflow-hidden">
+      <img src="logo.png" alt="" class="absolute inset-0 m-auto w-80 h-80 object-contain opacity-10 pointer-events-none select-none transparent-logo" onerror="this.style.display='none'">
+      <div class="relative z-10 border-b border-slate-100 pb-4 mb-6">
+        <h2 class="text-xl font-bold text-slate-800">بيانات ولي الأمر والتلميذ</h2>
+        <p class="text-sm text-slate-500 mt-1">مسابقة تربوية نظرية حول بناء قيمة الصدق والأمانة في نفوس أبنائنا.</p>
+      </div>
+      <form id="regForm" class="relative z-10 space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">اسم ولي الأمر بالكامل</label>
+          <input required id="parentName" type="text" placeholder="اكتب اسم ولي الأمر" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white/90 focus:outline-none focus:ring-2 focus:ring-teal-500 transition shadow-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">اسم التلميذ / التلميذة</label>
+          <input required id="studentName" type="text" placeholder="اكتب اسم التلميذ" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white/90 focus:outline-none focus:ring-2 focus:ring-teal-500 transition shadow-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">الصف الدراسي</label>
+          <select required id="studentGrade" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white/90 focus:outline-none focus:ring-2 focus:ring-teal-500 transition shadow-sm">
+            <option value="">اختر الصف الدراسي...</option>
+            <option value="الصف الأول الابتدائي">الصف الأول الابتدائي</option>
+            <option value="الصف الثاني الابتدائي">الصف الثاني الابتدائي</option>
+            <option value="الصف الثالث الابتدائي">الصف الثالث الابتدائي</option>
+            <option value="الصف الرابع الابتدائي">الصف الرابع الابتدائي</option>
+            <option value="الصف الخامس الابتدائي">الصف الخامس الابتدائي</option>
+            <option value="الصف السادس الابتدائي">الصف السادس الابتدائي</option>
+          </select>
+        </div>
+        <div class="p-3 bg-amber-50/90 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
+          <span>💡</span>
+          <span>تنبيه: اقرأ كل موقف تربوي بعناية واختر التصرف الأصح لتنتقل للسؤال التالي مباشرة.</span>
+        </div>
+        <button type="submit" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl transition duration-200 shadow">
+          بدء المسابقة التربوية
+        </button>
+      </form>
+    </div>
+
+    <!-- شاشة الاختبار التفاعلي النظري (سؤال بسؤال) -->
+    <div id="quizScreen" class="hidden space-y-4">
+      
+      <!-- شريط التقدم والمعلومات -->
+      <div class="bg-white p-3.5 rounded-xl border border-slate-200 flex items-center justify-between shadow-sm">
+        <div>
+          <span id="quizUserDisplay" class="font-bold text-slate-700 text-xs block"></span>
+          <span id="currentStepText" class="text-xs font-bold text-teal-700">الموقف التربوي 1 من 10</span>
+        </div>
+        <div class="w-40 bg-slate-100 rounded-full h-2.5 overflow-hidden">
+          <div id="progressBar" class="bg-teal-600 h-2.5 rounded-full transition-all duration-300" style="width: 10%"></div>
+        </div>
+      </div>
+
+      <!-- بطاقة السؤال الحالي -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+        
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <span class="inline-flex items-center gap-1.5 bg-teal-50 text-teal-800 text-xs font-bold px-3 py-1 rounded-full border border-teal-200">
+            <span>🧭</span> محور قيمة الصدق التربوية
+          </span>
+          <span id="questionBadge" class="text-xs font-bold text-slate-400">سؤال 1 / 10</span>
+        </div>
+
+        <!-- نص السؤال التربوي -->
+        <div>
+          <h3 id="questionText" class="font-bold text-slate-800 text-base md:text-lg leading-relaxed"></h3>
+        </div>
+
+        <!-- الخيارات الأربعة المتساوية في الطول والصعبة -->
+        <div id="optionsContainer" class="space-y-3 pt-1"></div>
+
+        <!-- زر الانتقال للسؤال التالي -->
+        <button id="nextBtn" disabled class="w-full bg-teal-600 disabled:bg-slate-300 disabled:cursor-not-allowed hover:bg-teal-700 text-white font-bold py-3.5 rounded-xl transition duration-200 shadow flex items-center justify-center gap-2 mt-2">
+          <span>تأكيد الإجابة والانتقال للسؤال التالي</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- شاشة النتيجة -->
+    <div id="resultScreen" class="hidden bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center">
+      <div class="w-16 h-16 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center mx-auto mb-3">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <h2 class="text-2xl font-bold text-slate-800">تم تسجيل إجاباتك بنجاح!</h2>
+      <p class="text-slate-500 text-sm mt-1">تم توثيق بياناتك بالسحابة وإغلاق إمكانية إعادة التقديم من هذا الجهاز.</p>
+      
+      <div class="mt-6 inline-block bg-teal-50 text-teal-800 px-8 py-4 rounded-2xl text-xl font-bold border border-teal-200">
+        درجتك الإجمالية: <span id="finalScoreDisplay">0</span> / 10
+      </div>
+
+      <div class="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl max-w-lg mx-auto text-xs text-slate-500 leading-relaxed">
+        🔒 تم إخفاء تفاصيل الإجابات لضمان نزاهة المسابقة، وسيتم إجراء السحب التلقائي للعجلة يوم الخميس 19 نوفمبر الساعة 8:00 مساءً.
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500 space-y-1">
+    <p class="font-bold text-slate-700">مدرسة عمر بن الخطاب للتعليم الأساسي بسِنْجِرْجْ - قسم التوجيه والإرشاد التربوي © 2026</p>
+    <p class="text-teal-700 font-semibold text-[11px]">مبادرة غرس القيم التربوية وبناء الشخصية</p>
+  </footer>
+
+  <script>
+    // ========================================================
+    // 1. نظام الصوتيات التفاعلية (Web Audio API)
+    // ========================================================
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    function playTickSound() {
+      try {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(650, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.04);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.04);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.04);
+      } catch (e) {}
+    }
+    function playWinnerFanfare() {
+      try {
+        initAudio();
+        const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99];
+        notes.forEach((freq, index) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, audioCtx.currentTime + (index * 0.08));
+          gain.gain.setValueAtTime(0.25, audioCtx.currentTime + (index * 0.08));
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (index * 0.08) + 0.4);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(audioCtx.currentTime + (index * 0.08));
+          osc.stop(audioCtx.currentTime + (index * 0.08) + 0.45);
+        });
+      } catch (e) {}
+    }
+    document.body.addEventListener('click', initAudio, { once: true });
+    document.body.addEventListener('touchstart', initAudio, { once: true });
+
+    // ========================================================
+    // 2. تهيئة Firebase لمسابقة الصدق (الأسبوع الثامن)
+    // ========================================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyAH77F6CXERkA--gbJ3ZD2PG92dy4gY_kc",
+      authDomain: "my-school-3e642.firebaseapp.com",
+      databaseURL: "https://my-school-3e642-default-rtdb.firebaseio.com",
+      projectId: "my-school-3e642",
+      storageBucket: "my-school-3e642.firebasestorage.app",
+      messagingSenderId: "1057314170482",
+      appId: "1:1057314170482:web:30b4fc1c7758f7f1ff04eb",
+      measurementId: "G-TFE1S0W8JM"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const participantsRef = db.ref("quiz_participants_honesty_w8");
+    const winnersRef = db.ref("lottery_winners_honesty_w8");
+
+    // موعد السحب: الخميس 19 نوفمبر 2026 الساعة 8:00 مساءً
+    const DRAW_TIME_MS = new Date("2026-11-19T20:00:00").getTime();
+
+    let cloudParticipants = [];
+    let cloudWinners = null;
+    let isDrawingLive = false;
+
+    participantsRef.on('value', (snapshot) => {
+      cloudParticipants = [];
+      const data = snapshot.val();
+      if (data) {
+        Object.keys(data).forEach(key => cloudParticipants.push(data[key]));
+      }
+      const candidates = getEligibleCandidates();
+      const countEl = document.getElementById('candidatesCount');
+      if (countEl) countEl.textContent = candidates.length;
+      if (!isDrawingLive && !cloudWinners) {
+        drawWheelCanvas(candidates, 0);
+      }
+    });
+
+    winnersRef.on('value', (snapshot) => {
+      cloudWinners = snapshot.val();
+      updateLotteryUI();
+    });
+
+    function getEligibleCandidates() {
+      const score10 = cloudParticipants.filter(p => Number(p.score) === 10);
+      const score9 = cloudParticipants.filter(p => Number(p.score) === 9);
+      if (score10.length > 20) return score10;
+      return [...score10, ...score9];
+    }
+
+    const canvas = document.getElementById('wheelCanvas');
+    const ctx = canvas.getContext('2d');
+    const colors = ["#0d9488", "#0284c7", "#f59e0b", "#8b5cf6", "#ec4899", "#10b981", "#6366f1", "#f97316"];
+
+    function drawWheelCanvas(items, currentAngleRad) {
+      if (!items || items.length === 0) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#e2e8f0";
+        ctx.beginPath();
+        ctx.arc(170, 170, 160, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = "#64748b";
+        ctx.font = "bold 14px Tajawal";
+        ctx.textAlign = "center";
+        ctx.fillText("في انتظار تسجيل المؤهلين للسحب...", 170, 175);
+        return;
+      }
+      const numSegments = items.length;
+      const arcSize = (2 * Math.PI) / numSegments;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = 0; i < numSegments; i++) {
+        const angle = currentAngleRad + (i * arcSize);
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.beginPath();
+        ctx.moveTo(170, 170);
+        ctx.arc(170, 170, 165, angle, angle + arcSize);
+        ctx.lineTo(170, 170);
+        ctx.fill();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.save();
+        ctx.translate(170, 170);
+        ctx.rotate(angle + arcSize / 2);
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 12px Tajawal";
+        let displayName = items[i].name;
+        if (displayName.length > 14) displayName = displayName.substring(0, 13) + "..";
+        ctx.fillText(displayName, 150, 4);
+        ctx.restore();
+      }
+
+      ctx.beginPath();
+      ctx.arc(170, 170, 26, 0, 2 * Math.PI);
+      ctx.fillStyle = "#1e293b";
+      ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
+    function startLiveSequentialDraw() {
+      if (isDrawingLive || cloudWinners) return;
+      const candidates = getEligibleCandidates();
+      if (candidates.length === 0) return;
+
+      winnersRef.once('value').then((snapshot) => {
+        if (snapshot.exists()) {
+          cloudWinners = snapshot.val();
+          updateLotteryUI();
+          return;
+        }
+
+        isDrawingLive = true;
+        document.getElementById('lotteryPreDraw').classList.add('hidden');
+        document.getElementById('lotteryWinnersBoard').classList.add('hidden');
+        document.getElementById('lotteryLiveArea').classList.remove('hidden');
+
+        let remainingPool = [...candidates];
+        let selectedWinners = [];
+        let currentRound = 1;
+        let wheelAngle = 0;
+
+        function spinForNextWinner() {
+          if (currentRound > 5 || remainingPool.length === 0) {
+            winnersRef.set(selectedWinners).then(() => {
+              isDrawingLive = false;
+              cloudWinners = selectedWinners;
+              updateLotteryUI();
+            });
+            return;
+          }
+
+          const roundTitle = document.getElementById('currentRoundTitle');
+          const announcement = document.getElementById('roundAnnouncement');
+          const titles = ["الأول", "الثاني", "الثالث", "الرابع", "الخامس"];
+          roundTitle.textContent = `🎡 جاري سحب الفائز رقم (${titles[currentRound - 1]})...`;
+          announcement.textContent = "العجلة تدور الآن...";
+
+          const winningIdx = Math.floor(Math.random() * remainingPool.length);
+          const winner = remainingPool[winningIdx];
+          const numSegments = remainingPool.length;
+          const segmentAngle = (2 * Math.PI) / numSegments;
+          const targetStopAngle = (1.5 * Math.PI) - (winningIdx * segmentAngle) - (segmentAngle / 2);
+          const extraSpins = (4 + Math.floor(Math.random() * 3)) * (2 * Math.PI);
+          const finalAngle = extraSpins + targetStopAngle;
+          const spinDuration = 5000;
+          const startTime = performance.now();
+          let lastTickAngle = 0;
+
+          function animateSpin(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / spinDuration, 1);
+            const easeProgress = 1 - Math.pow(1 - progress, 3);
+            wheelAngle = easeProgress * finalAngle;
+            drawWheelCanvas(remainingPool, wheelAngle);
+
+            if (Math.abs(wheelAngle - lastTickAngle) > segmentAngle) {
+              playTickSound();
+              lastTickAngle = wheelAngle;
+            }
+
+            if (progress < 1) {
+              requestAnimationFrame(animateSpin);
+            } else {
+              playWinnerFanfare();
+              selectedWinners.push(winner);
+              remainingPool.splice(winningIdx, 1);
+              announcement.innerHTML = `🎉 مبارك للفائز ${titles[currentRound - 1]}: <span class="text-rose-600 underline">${winner.name}</span>!`;
+
+              const liveList = document.getElementById('liveWinnersList');
+              const winnerCard = document.createElement('div');
+              winnerCard.className = "flex items-center justify-between p-3 bg-emerald-50 border border-emerald-300 rounded-xl winner-card-anim shadow-sm";
+              winnerCard.innerHTML = `
+                <div class="flex items-center gap-2">
+                  <span class="w-6 h-6 bg-teal-600 text-white rounded-full flex items-center justify-center text-xs font-bold">${currentRound}</span>
+                  <span class="font-bold text-slate-800 text-sm">${winner.name}</span>
+                </div>
+                <span class="bg-emerald-200 text-emerald-800 text-xs px-2.5 py-1 rounded-lg font-bold">الدرجة: ${winner.score}</span>
+              `;
+              liveList.appendChild(winnerCard);
+
+              currentRound++;
+              setTimeout(spinForNextWinner, 3000);
+            }
+          }
+          requestAnimationFrame(animateSpin);
+        }
+        spinForNextWinner();
+      });
+    }
+
+    function updateLotteryUI() {
+      const now = Date.now();
+      const preDrawEl = document.getElementById('lotteryPreDraw');
+      const liveAreaEl = document.getElementById('lotteryLiveArea');
+      const winnersBoardEl = document.getElementById('lotteryWinnersBoard');
+      const countdownBox = document.getElementById('countdownBox');
+
+      if (cloudWinners) {
+        preDrawEl.classList.add('hidden');
+        liveAreaEl.classList.add('hidden');
+        winnersBoardEl.classList.remove('hidden');
+        const winnersList = document.getElementById('finalWinnersList');
+        let html = '';
+        cloudWinners.forEach((w, idx) => {
+          html += `
+            <div class="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-xs">
+              <div class="flex items-center gap-2">
+                <span class="w-6 h-6 bg-teal-600 text-white rounded-full flex items-center justify-center text-xs font-bold">${idx + 1}</span>
+                <span class="font-bold text-slate-800 text-sm">${w.name}</span>
+              </div>
+              <span class="bg-emerald-100 text-emerald-700 text-xs px-2.5 py-1 rounded-lg font-bold">الدرجة: ${w.score}</span>
+            </div>
+          `;
+        });
+        winnersList.innerHTML = html;
+        return;
+      }
+
+      if (now < DRAW_TIME_MS) {
+        preDrawEl.classList.remove('hidden');
+        liveAreaEl.classList.add('hidden');
+        winnersBoardEl.classList.add('hidden');
+        const diff = DRAW_TIME_MS - now;
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+        const mins = Math.floor((diff / 1000 / 60) % 60);
+        const secs = Math.floor((diff / 1000) % 60);
+        countdownBox.textContent = `متبقي: ${days} يوم و ${hours} ساعة و ${mins} دقيقة و ${secs} ثانية`;
+      } else {
+        if (!isDrawingLive && !cloudWinners) {
+          startLiveSequentialDraw();
+        }
+      }
+    }
+    setInterval(updateLotteryUI, 1000);
+    updateLotteryUI();
+
+    // ========================================================
+    // 3. بنك الأسئلة التربوية النظرية حول قيمة الصدق (10 أسئلة متعمقة)
+    // ========================================================
+    const EMAILJS_PUBLIC_KEY = "iK5qvWN2dpDG1VP40";
+    const EMAILJS_SERVICE_ID = "service_npg1g8d";
+    const EMAILJS_TEMPLATE_ID = "template_ggyi9va";
+    if (window.emailjs) emailjs.init(EMAILJS_PUBLIC_KEY);
+
+    const quizData = [
+      {
+        id: 1,
+        question: "ما هو السبب النفسي والتربوي الأعمق الذي يدفع تلميذ المرحلة الابتدائية غالباً إلى اختلاق الأعذار والكذب عند ارتكاب خطأ غير مقصود؟",
+        options: [
+          { text: "وجود ميل فطري موروث لدى بعض الأطفال نحو المراوغة وتضليل الكبار منذ السنوات الأولى", correct: false },
+          { text: "تأثر التلميذ بالمشاهد الدرامية والكرتونية التي تروج للتحايل كوسيلة ذكية للخروج من المآزق", correct: false },
+          { text: "الخوف الشديد من رد الفعل الانفعالي الحاد والعقاب القاسي وفقدان القبول والحب داخل الأسرة", correct: true }, // ج
+          { text: "رغبة التلميذ في اختبار مدى ذكاء والديه وقدرتهما على كشف الحقائق الخفية في المواقف اليومية", correct: false }
+        ]
+      },
+      {
+        id: 2,
+        question: "كيف ينعكس استخدام أسلوب التحقيق البوليسي والأسئلة الاستفزازية مع الطفل (مثل: من كسر الكوب؟ وأنت تعلم أنه هو) على قيمة الصدق لديه؟",
+        options: [
+          { text: "يدفع الطفل للاعتراف السريع ويزرع بداخله الشجاعة الأدبية لمواجهة أخطائه بشفافية تامة", correct: false },
+          { text: "يجبر الطفل على الدفاع عن نفسه بالكذب للهروب من الفخ المنصوب له وإثبات براءته الظاهرية", correct: true }, // ب
+          { text: "ينمي لدى الطفل مهارات التحليل المنطقي والقدرة على صياغة الحجج المقنعة أمام الآخرين", correct: false },
+          { text: "يعزز هيبة الوالدين داخل المنزل ويمنع التلميذ من التفكير في تكرار أي مخالفة سلوكية لاحقاً", correct: false }
+        ]
+      },
+      {
+        id: 3,
+        question: "عندما يعترف التلميذ بصدق أنه أهمل أداء واجبه المدرسي أو تسبب في إتلاف أداة بالمنزل، ما هو التصرف التربوي الأمثل لترسيخ قيمة الصدق؟",
+        options: [
+          { text: "مدح شجاعته في قول الحقيقة أولاً ثم إشراكه في إصلاح أثر الخطأ كعاقبة منطقية هادئة وبناءة", correct: true }, // أ
+          { text: "إعفاؤه التام من أي مسؤولية أو تصحيح للخطأ مكافأةً له على صراحته وعدم لجوئه إلى الإنكار", correct: false },
+          { text: "معاقبته بنفس العقوبة القاسية المقررة للخطأ حتى يدرك أن الصدق لا يعفي من الجزاء الصارم", correct: false },
+          { text: "تجاهل اعترافه تماماً وتولي إصلاح الأمر نيابة عنه لتجنب إحراجه أو إشعاره بالذنب الداخلي", correct: false }
+        ]
+      },
+      {
+        id: 4,
+        question: "ما هو الأثر التربوي المباشر لطلب الأم من ابنها إبلاغ المتصل بالهاتف أو الطارق على الباب بأنها غير موجودة بالمنزل رغم وجودها؟",
+        options: [
+          { text: "تعليم الطفل مهارات اللباقة الاجتماعية وحسن التصرف في المواقف المحرجة مع الجيران والأقارب", correct: false },
+          { text: "إدراك الطفل أن الكذب سلوك انتقائي مباح يستخدمه الكبار لتحقيق الراحة وتجنب الالتزامات", correct: true }, // ب
+          { text: "تعزيز روح التعاون الأسري وطاعة الوالدين في تنفيذ التعليمات دون جدال أو اعتراض لفظي", correct: false },
+          { text: "حماية خصوصية الأسرة وتدريب التلميذ على كتمان أسرار البيت وعدم البوح بها للغرباء مطلقاً", correct: false }
+        ]
+      },
+      {
+        id: 5,
+        question: "كيف يميز المربي الواعي بين (الخيال الواسع) لدى تلميذ الصفوف الأولى وبين (الكذب المتعمد) عند سرده لقصص غير واقعية؟",
+        options: [
+          { text: "الخيال يهدف للحصول على منفعة مادية مباشرة، بينما الكذب ينبع من رغبة في لفت الانتباه فقط", correct: false },
+          { text: "الخيال يظهر في المواقف الدراسية فقط، بينما يرتبط الكذب بالألعاب والتعامل مع الأقران", correct: false },
+          { text: "الخيال سمة نمائية بريئة تخلو من نية الخداع أو الأذى، بينما الكذب يقصد به التضليل أو التهرب", correct: true }, // ج
+          { text: "الخيال يستمر طوال مراحل المراهقة بنفس الصورة، بينما يتوقف الكذب تلقائياً مع دخول المدرسة", correct: false }
+        ]
+      },
+      {
+        id: 6,
+        question: "في حال اكتشاف ولي الأمر أن ابنه يبالغ في اختلاق قصص بطولية أو ممتلكات وهمية أمام زملائه في الفصل، ما هو التفسير النفسي الدقيق لهذا السلوك؟",
+        options: [
+          { text: "وجود نزعة استعلائية لدى التلميذ تدفعه للتفاخر الكاذب والانتقاص من مكانة أقرانه بالمدرسة", correct: false },
+          { text: "تأثر التلميذ ببيئة الفصل التنافسية وحاجته إلى فرض سيطرته المعنوية على بقية التلاميذ", correct: false },
+          { text: "ضعف الرقابة الأسرية على سلوكيات التلميذ اليومية وعدم محاسبته على دقة أقواله باستمرار", correct: false },
+          { text: "شعور التلميذ بالنقص الداخلي وحاجته الماسة للتقدير والقبول الاجتماعي وسط مجموعة الأقران", correct: true } // د
+        ]
+      },
+      {
+        id: 7,
+        question: "ما هي القاعدة الذهبية في التعامل مع الوعود التي يقطعها الوالدان لأبنائهما في المرحلة الابتدائية لبناء مصداقية القدوة؟",
+        options: [
+          { text: "الالتزام التام بالوفاء بكل وعد مهما صغر، والاعتذار الصريح وتوضيح السبب عند تعذر التنفيذ", correct: true }, // أ
+          { text: "استخدام الوعود التحفيزية المؤجلة كوسيلة مستمرة لضمان طاعة الطفل وتنفيذ واجباته المنزلية", correct: false },
+          { text: "تغيير شروط الوعد تدريجياً كلما اقترب موعد التنفيذ لتدريب الطفل على المرونة وتقبل الواقع", correct: false },
+          { text: "تجنب تقديم أي وعود مادية أو معنوية للأبناء نهائياً حتى لا يرتبط سلوكهم بالمقابل الخارجي", correct: false }
+        ]
+      },
+      {
+        id: 8,
+        question: "كيف يمكن لولي الأمر غرس قيمة (الصدق مع الذات) لدى التلميذ عند إخفاقه في اختبار دراسي دون إلقاء اللوم على المعلم أو صعوبة الأسئلة؟",
+        options: [
+          { text: "موافقة التلميذ في انتقاد أسلوب المعلم لتخفيف حدة الإحباط النفسي والحفاظ على ثقته بنفسه", correct: false },
+          { text: "مقارنة درجاته بدرجات زملائه المتفوقين لإشعاره بحجم التقصير ودفعه نحو بذل جهد مضاعف", correct: false },
+          { text: "تدريبه على تقييم جهده بموضوعية وتحديد نقاط ضعفه بشفافية ووضع خطة عملية لتطوير مستواه", correct: true }, // ج
+          { text: "إلزامه بإعادة حل الاختبار عشرات المرات كإجراء انضباطي يرسخ لديه جدية العملية التعليمية", correct: false }
+        ]
+      },
+      {
+        id: 9,
+        question: "عندما ينقل التلميذ لوالديه رواية منقوصة أو محرفة حول خلاف وقع بينه وبين زميله بالمدرسة، ما هو الإجراء التربوي الحكيم؟",
+        options: [
+          { text: "تصديق رواية الابن فوراً والدفاع عنه أمام إدارة المدرسة لتعزيز شعوره بالأمان والسند الأسري", correct: false },
+          { text: "تكذيب الابن علناً واتهامه بالتحيز والتلفيق لإجباره على الاعتراف بالجزء المخفي من الحقيقة", correct: false },
+          { text: "إهمال الشكوى تماماً وعدم التدخل في خلافات الأطفال باعتبارها أموراً عابرة تحل تلقائياً", correct: false },
+          { text: "الاستماع إليه بتعاطف ثم طرح أسئلة مفتوحة تساعده على رؤية الصورة الكاملة والإنصاف بموضوعية", correct: true } // د
+        ]
+      },
+      {
+        id: 10,
+        question: "ما هو المؤشر الحقيقي الذي يدل على نجاح الأسرة والمدرسة في ترسيخ قيمة الصدق كقيمة ذاتية أصيلة في شخصية التلميذ؟",
+        options: [
+          { text: "التزام التلميذ بقول الحق وأداء الأمانات بدافع الرقابة الذاتية ومخافة الله حتى في غياب الرقيب", correct: true }, // أ
+          { text: "حرص التلميذ الدائم على سرد كافة تفاصيل يومه الدراسي لوالديه بدقة متناهية دون إغفال شيء", correct: false },
+          { text: "قدرة التلميذ على حفظ الآيات والأحاديث النبوية التي تحث على الصدق وترديدها في الإذاعة المدرسية", correct: false },
+          { text: "امتناع التلميذ عن ارتكاب الأخطاء السلوكية داخل الفصل خوفاً من تدوين ملاحظات سلبية في ملفه", correct: false }
+        ]
+      }
+    ];
+
+    // ========================================================
+    // 4. إدارة التسجيل والـ Auto-Login وعرض الأسئلة تتابعياً
+    // ========================================================
+    const STORAGE_KEY_PROFILE = "school_parent_profile";
+    const STORAGE_KEY_TAKEN = "school_quiz_honesty_w8_lock";
+    const STORAGE_KEY_DETAILS = "school_quiz_honesty_w8_details";
+
+    let currentQuestionIndex = 0;
+    let userScore = 0;
+    let selectedOptionIndex = null;
+
+    const registrationScreen = document.getElementById('registrationScreen');
+    const quizScreen = document.getElementById('quizScreen');
+    const resultScreen = document.getElementById('resultScreen');
+    const alreadyTakenScreen = document.getElementById('alreadyTakenScreen');
+
+    const questionBadge = document.getElementById('questionBadge');
+    const questionText = document.getElementById('questionText');
+    const optionsContainer = document.getElementById('optionsContainer');
+    const nextBtn = document.getElementById('nextBtn');
+    const currentStepText = document.getElementById('currentStepText');
+    const progressBar = document.getElementById('progressBar');
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const isTaken = localStorage.getItem(STORAGE_KEY_TAKEN);
+      if (isTaken === "completed") {
+        lockUser();
+        return;
+      }
+
+      const savedProfile = localStorage.getItem(STORAGE_KEY_PROFILE);
+      if (savedProfile) {
+        try {
+          const profile = JSON.parse(savedProfile);
+          if (profile.parentName && profile.studentName && profile.grade) {
+            autoLoginUser(profile);
+          }
+        } catch (e) {}
+      }
+    });
+
+    function autoLoginUser(profile) {
+      document.getElementById('parentName').value = profile.parentName;
+      document.getElementById('studentName').value = profile.studentName;
+      document.getElementById('studentGrade').value = profile.grade;
+      document.getElementById('quizUserDisplay').textContent = `${profile.parentName} (${profile.studentName})`;
+
+      registrationScreen.classList.add('hidden');
+      quizScreen.classList.remove('hidden');
+      loadQuestion(0);
+    }
+
+    function lockUser() {
+      registrationScreen.classList.add('hidden');
+      quizScreen.classList.add('hidden');
+      resultScreen.classList.add('hidden');
+      alreadyTakenScreen.classList.remove('hidden');
+
+      const savedData = JSON.parse(localStorage.getItem(STORAGE_KEY_DETAILS) || "{}");
+      if (savedData && savedData.score !== undefined) {
+        document.getElementById('previousScoreBox').innerHTML = `
+          ولي الأمر: ${savedData.parentName || 'مسجل'} | الدرجة المحققة: ${savedData.score} من 10
+        `;
+      }
+    }
+
+    document.getElementById('regForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const pName = document.getElementById('parentName').value.trim();
+      const sName = document.getElementById('studentName').value.trim();
+      const sGrade = document.getElementById('studentGrade').value;
+
+      if (!pName || !sName || !sGrade) {
+        alert("يرجى إكمال كافة البيانات.");
+        return;
+      }
+
+      localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify({ parentName: pName, studentName: sName, grade: sGrade }));
+      document.getElementById('quizUserDisplay').textContent = `${pName} (${sName})`;
+
+      registrationScreen.classList.add('hidden');
+      quizScreen.classList.remove('hidden');
+      loadQuestion(0);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    function loadQuestion(index) {
+      selectedOptionIndex = null;
+      nextBtn.disabled = true;
+
+      const q = quizData[index];
+      currentStepText.textContent = `الموقف التربوي ${index + 1} من ${quizData.length}`;
+      questionBadge.textContent = `سؤال ${index + 1} / ${quizData.length}`;
+      progressBar.style.width = `${((index + 1) / quizData.length) * 100}%`;
+
+      questionText.textContent = q.question;
+      optionsContainer.innerHTML = '';
+
+      q.options.forEach((opt, idx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = "w-full text-right p-4 rounded-xl border border-slate-200 bg-white hover:bg-teal-50 hover:border-teal-300 font-medium text-sm transition flex items-center justify-between shadow-xs";
+        btn.innerHTML = `<span class="leading-relaxed">${opt.text}</span><span class="w-4 h-4 rounded-full border border-slate-300 check-dot shrink-0 ml-2"></span>`;
+        
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('#optionsContainer button').forEach(b => {
+            b.classList.remove('border-teal-600', 'bg-teal-50', 'text-teal-900', 'font-bold');
+            b.querySelector('.check-dot').classList.remove('bg-teal-600', 'border-teal-600');
+          });
+          btn.classList.add('border-teal-600', 'bg-teal-50', 'text-teal-900', 'font-bold');
+          btn.querySelector('.check-dot').classList.add('bg-teal-600', 'border-teal-600');
+          selectedOptionIndex = idx;
+          nextBtn.disabled = false;
+        });
+
+        optionsContainer.appendChild(btn);
+      });
+
+      if (index === quizData.length - 1) {
+        nextBtn.innerHTML = `<span>إرسال الإجابات واعتماد النتيجة النهائية</span>`;
+      } else {
+        nextBtn.innerHTML = `<span>تأكيد الإجابة والانتقال للسؤال التالي</span>`;
+      }
+    }
+
+    nextBtn.addEventListener('click', () => {
+      if (selectedOptionIndex === null) return;
+
+      if (quizData[currentQuestionIndex].options[selectedOptionIndex].correct) {
+        userScore++;
+      }
+
+      currentQuestionIndex++;
+      if (currentQuestionIndex < quizData.length) {
+        loadQuestion(currentQuestionIndex);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        finishQuiz();
+      }
+    });
+
+    function finishQuiz() {
+      nextBtn.disabled = true;
+      nextBtn.innerHTML = `<span>جاري توثيق إجاباتك بالسحابة...</span>`;
+
+      const parentNameVal = document.getElementById('parentName').value.trim();
+      const studentNameVal = document.getElementById('studentName').value.trim();
+      const studentGradeVal = document.getElementById('studentGrade').value;
+      const nowTime = new Date().toLocaleString('ar-EG');
+
+      if (userScore >= 9) {
+        participantsRef.push({
+          name: parentNameVal,
+          studentName: studentNameVal,
+          grade: studentGradeVal,
+          score: userScore,
+          submittedAt: nowTime
+        });
+      }
+
+      const emailParams = {
+        parent_name: parentNameVal,
+        student_name: studentNameVal,
+        student_grade: studentGradeVal,
+        score: userScore,
+        submission_time: nowTime
+      };
+
+      const finishSubmission = () => {
+        const summaryData = {
+          parentName: parentNameVal,
+          studentName: studentNameVal,
+          grade: studentGradeVal,
+          score: userScore,
+          submittedAt: nowTime
+        };
+
+        localStorage.setItem(STORAGE_KEY_TAKEN, "completed");
+        localStorage.setItem(STORAGE_KEY_DETAILS, JSON.stringify(summaryData));
+
+        quizScreen.classList.add('hidden');
+        document.getElementById('finalScoreDisplay').textContent = userScore;
+        resultScreen.classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      };
+
+      if (window.emailjs) {
+        emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, emailParams)
+          .catch(err => console.error("فشل إرسال الإيميل:", err))
+          .finally(finishSubmission);
+      } else {
+        finishSubmission();
+      }
+    }
+  </script>
+</body>
+</html>
